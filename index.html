@@ -125,6 +125,7 @@
   <script>
     const resultDiv = document.getElementById("result");
     const historyList = document.getElementById("history-list");
+    let scanner = null;
     let wakeLock = null;
 
     async function requestWakeLock() {
