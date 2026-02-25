@@ -146,9 +146,8 @@
     }
 
     function onScanFailure(err) {
-      // Bình thường khi không thấy mã → chỉ log debug
-      if (err?.includes?.("No MultiFormat Readers")) return;
-      console.debug("Scan failure (thường gặp):", err);
+      // Log tất cả lỗi để debug
+      console.log("Scan failure:", err);
     }
 
     function startScanner() {
@@ -162,7 +161,7 @@
       scanner = new Html5QrcodeScanner(
         "reader",
         {
-          fps: 25,                          // Tăng fps để detect nhanh hơn
+          fps: 30,                          // Tăng fps để detect nhanh hơn
           qrbox: { width: 450, height: 300 }, // Khung lớn hơn, dễ quét barcode 1D
           aspectRatio: 1.333,               // Gần 4:3 cho mobile tốt hơn
           disableFlip: false,
@@ -243,6 +242,11 @@
     // Tự động dừng khi thoát trang
     window.addEventListener("beforeunload", () => {
       if (scanner) scanner.clear();
+    });
+
+    // Tự động khởi động scanner khi trang load
+    window.addEventListener("load", () => {
+      startScanner();
     });
   </script>
 
