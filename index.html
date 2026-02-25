@@ -162,11 +162,11 @@
         "reader",
         {
           fps: 30,                          // Tăng fps để detect nhanh hơn
-          qrbox: { width: 450, height: 300 }, // Khung lớn hơn, dễ quét barcode 1D
+          qrbox: { width: 500, height: 350 }, // Lớn hơn để dễ quét barcode
           aspectRatio: 1.333,               // Gần 4:3 cho mobile tốt hơn
           disableFlip: false,
           experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true  // Rất quan trọng: dùng native API cho barcode
+            useBarCodeDetectorIfSupported: false  // Tắt native API, dùng library's own readers cho tất cả
           },
           rememberLastUsedCamera: true,
           showTorchButtonIfSupported: true,
