@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+  <title>Demo Quét Mã Vạch & QR Code Full - Fixed Detection</title>
+  
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #f0f4f8, #d9e2ec);
+      margin: 0;
+      padding: 15px 10px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 {
+      color: #1e40af;
+      margin: 10px 0 15px;
+      font-size: 1.7rem;
+      text-align: center;
+    }
+    #reader {
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto 20px;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      background: #000;
+    }
+    #result {
+      width: 100%;
+      max-width: 600px;
+      background: white;
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+      min-height: 110px;
+      font-size: 1.15rem;
+      line-height: 1.5;
+      word-break: break-all;
+    }
+    #result.success {
+      border-left: 6px solid #10b981;
+      background: #f0fdf4;
+    }
+    #history {
+      width: 100%;
+      max-width: 600px;
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    #history h3 {
+      margin: 0 0 12px;
+      color: #1e40af;
+    }
+    #history ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    #history li {
+      padding: 10px;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 0.95rem;
+    }
+    #history li:last-child { border-bottom: none; }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+      margin: 15px 0;
+    }
+    button {
+      padding: 12px 26px;
+      font-size: 1rem;
+      font-weight: 500;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    button:hover { transform: translateY(-2px); opacity: 0.95; }
+    #start { background: #10b981; color: white; }
+    #stop  { background: #ef4444; color: white; }
+    #restart { background: #3b82f6; color: white; }
+    #clear { background: #6b7280; color: white; }
+    small { color: #6b7280; display: block; margin: 10px 0; text-align: center; }
+  </style>
+
+  <!-- Sử dụng latest để lấy bản cập nhật mới nhất (nếu có fix) -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+</head>
+<body>
+
+  <h1>Quét Mã Vạch / QR Code (Fixed Live Detection)</h1>
+
+  <div id="reader"></div>
+
+  <div id="result">Kết quả sẽ hiển thị ở đây... (Đưa mã vào khung xanh)</div>
+
+  <div class="controls">
+    <button id="start">Khởi động Scanner</button>
+    <button id="stop">Dừng Scanner</button>
+    <button id="restart">Khởi động lại</button>
+    <button id="clear">Xóa lịch sử</button>
+  </div>
+
+  <div id="history">
+    <h3>Lịch sử quét gần đây</h3>
+    <ul id="history-list"></ul>
+  </div>
+
+  <small>Tip: Dùng camera sau, bật đèn flash nếu tối. Test QR trước (dễ detect hơn barcode). Mở Console (F12) để xem log lỗi nếu không quét được.</small>
+
+  <script>
+    const resultDiv = document.getElementById("result");
+    const historyList = document.getElementById("history-list");
+    let scanner = null;
+    let beepAudio = new Audio("https://assets.mixkit.co/sfx/preview/mixkit-barcode-scanner-beep-2073.mp3");
+
+    function addToHistory(text, format) {
+      const li = document.createElement("li");
+      li.innerHTML = `<strong>${text}</strong><br><small>Loại: ${format} — ${new Date().toLocaleTimeString('vi-VN')}</small>`;
+      historyList.prepend(li);
+      if (historyList.children.length > 12) historyList.removeChild(historyList.lastChild);
+    }
+
+    function onScanSuccess(decodedText, decodedResult) {
+      console.log("Quét thành công:", decodedText, decodedResult);
+      resultDiv.innerHTML = `Mã: <strong>${decodedText}</strong><br>Loại: ${decodedResult.format}`;
+      resultDiv.classList.add("success");
+      addToHistory(decodedText, decodedResult.format);
+      beepAudio.currentTime = 0;
+      beepAudio.play().catch(e => console.log("Beep error:", e));
+      // scanner?.clear(); // Uncomment nếu muốn dừng sau 1 lần quét
+    }
+
+    function onScanFailure(err) {
+      // Bình thường khi không thấy mã → chỉ log debug
+      if (err?.includes?.("No MultiFormat Readers")) return;
+      console.debug("Scan failure (thường gặp):", err);
+    }
+
+    function startScanner() {
+      if (scanner) {
+        console.log("Scanner đang chạy, không khởi động lại.");
+        return;
+      }
+
+      console.log("Bắt đầu khởi tạo scanner...");
+
+      scanner = new Html5QrcodeScanner(
+        "reader",
+        {
+          fps: 25,                          // Tăng fps để detect nhanh hơn
+          qrbox: { width: 450, height: 300 }, // Khung lớn hơn, dễ quét barcode 1D
+          aspectRatio: 1.333,               // Gần 4:3 cho mobile tốt hơn
+          disableFlip: false,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true  // Rất quan trọng: dùng native API cho barcode
+          },
+          rememberLastUsedCamera: true,
+          showTorchButtonIfSupported: true,
+          showZoomSliderIfSupported: true,
+          defaultZoomValueIfSupported: 1.5,
+          supportedScanTypes: [
+            Html5QrcodeScanType.SCAN_TYPE_CAMERA,
+            Html5QrcodeScanType.SCAN_TYPE_FILE
+          ],
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.QR_CODE,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.ITF,
+            Html5QrcodeSupportedFormats.PDF417,
+            Html5QrcodeSupportedFormats.CODABAR
+          ]
+        },
+        false  // Không verbose quá nhiều
+      );
+
+      scanner.render(onScanSuccess, onScanFailure);
+
+      // Fix focus & zoom sau khi camera start (quan trọng cho mobile)
+      setTimeout(() => {
+        if (scanner && scanner.getState() === Html5QrcodeScannerStates.SCANNING) {
+          console.log("Áp dụng continuous focus + zoom...");
+          scanner.applyVideoConstraints({
+            focusMode: "continuous",
+            advanced: [{ zoom: 1.8 }]
+          }).then(() => {
+            console.log("Focus/zoom applied thành công");
+          }).catch(e => {
+            console.warn("Không apply focus/zoom được (có thể browser không hỗ trợ):", e);
+          });
+        } else {
+          console.warn("Scanner chưa ở trạng thái SCANNING khi apply constraints");
+        }
+      }, 1800);  // Đợi camera ổn định
+    }
+
+    document.getElementById("start").addEventListener("click", () => {
+      startScanner();
+    });
+
+    document.getElementById("stop").addEventListener("click", () => {
+      if (scanner) {
+        scanner.clear().then(() => {
+          console.log("Scanner đã dừng");
+          resultDiv.textContent = "Đã dừng scanner. Nhấn 'Khởi động lại' nếu cần.";
+          resultDiv.classList.remove("success");
+          scanner = null;
+        }).catch(e => console.error("Lỗi khi dừng:", e));
+      }
+    });
+
+    document.getElementById("restart").addEventListener("click", () => {
+      if (scanner) scanner.clear();
+      scanner = null;
+      setTimeout(startScanner, 600);
+    });
+
+    document.getElementById("clear").addEventListener("click", () => {
+      resultDiv.textContent = "Kết quả sẽ hiển thị ở đây...";
+      resultDiv.classList.remove("success");
+      historyList.innerHTML = "";
+    });
+
+    // Tự động dừng khi thoát trang
+    window.addEventListener("beforeunload", () => {
+      if (scanner) scanner.clear();
+    });
+  </script>
+
+</body>
+</html>
