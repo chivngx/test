@@ -125,8 +125,26 @@
   <script>
     const resultDiv = document.getElementById("result");
     const historyList = document.getElementById("history-list");
-    let scanner = null;
-    let beepAudio = new Audio("https://assets.mixkit.co/sfx/preview/mixkit-barcode-scanner-beep-2073.mp3");
+    let wakeLock = null;
+
+    async function requestWakeLock() {
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        console.log('Wake Lock activated');
+        wakeLock.addEventListener('release', () => {
+          console.log('Wake Lock released');
+        });
+      } catch (err) {
+        console.error('Wake Lock failed:', err);
+      }
+    }
+
+    function releaseWakeLock() {
+      if (wakeLock) {
+        wakeLock.release();
+        wakeLock = null;
+      }
+    }
 
     function addToHistory(text, format) {
       const li = document.createElement("li");
@@ -157,7 +175,7 @@
       }
 
       console.log("Bắt đầu khởi tạo scanner...");
-
+      requestWakeLock();  // Giữ màn hình sáng
       scanner = new Html5QrcodeScanner(
         "reader",
         {
@@ -223,6 +241,7 @@
           resultDiv.textContent = "Đã dừng scanner. Nhấn 'Khởi động lại' nếu cần.";
           resultDiv.classList.remove("success");
           scanner = null;
+          releaseWakeLock();  // Thả wake lock
         }).catch(e => console.error("Lỗi khi dừng:", e));
       }
     });
@@ -242,6 +261,7 @@
     // Tự động dừng khi thoát trang
     window.addEventListener("beforeunload", () => {
       if (scanner) scanner.clear();
+      releaseWakeLock();
     });
 
     // Tự động khởi động scanner khi trang load
